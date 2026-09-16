@@ -2,33 +2,42 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // 1. API TẠO HOẶC LƯU FILE RAW (POST /api/upload)
+    // Bật CORS để Web Manager từ Repo khác có thể gọi API vào
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    };
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    // 1. API LƯU FILE (POST /api/upload)
     if (url.pathname === '/api/upload' && request.method === 'POST') {
       try {
-        const body = await request.json();
-        const { filename, content } = body;
+        const { filename, content } = await request.json();
 
         if (!filename || !content) {
-          return new Response(JSON.stringify({ error: 'Thiếu tên file hoặc nội dung!' }), {
+          return new Response(JSON.stringify({ error: 'Missing filename or content' }), {
             status: 400,
-            headers: { 'Content-Type': 'application/json' }
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
 
-        // Lưu trực tiếp vào KV với key = filename
         await env.PASTE_DB.put(filename, content);
 
         return new Response(JSON.stringify({ 
           success: true, 
-          rawUrl: `${url.origin}/raw/${filename}` 
+          rawUrl: `${url.origin}/${filename}` 
         }), {
           status: 200,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
+        return new Response(JSON.stringify({ error: err.message }), { 
+          status: 500, 
+          headers: corsHeaders 
         });
       }
     }
@@ -38,38 +47,45 @@ export default {
       try {
         const filename = url.searchParams.get('file');
         if (!filename) {
-          return new Response(JSON.stringify({ error: 'Thiếu tên file!' }), { status: 400 });
+          return new Response(JSON.stringify({ error: 'Missing filename' }), { 
+            status: 400, 
+            headers: corsHeaders 
+          });
         }
 
         await env.PASTE_DB.delete(filename);
-        return new Response(JSON.stringify({ success: true }), { status: 200 });
+        return new Response(JSON.stringify({ success: true }), { 
+          status: 200, 
+          headers: corsHeaders 
+        });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+        return new Response(JSON.stringify({ error: err.message }), { 
+          status: 500, 
+          headers: corsHeaders 
+        });
       }
     }
 
-    // 3. XEM NỘI DUNG RAW (GET /raw/filename)
-    if (url.pathname.startsWith('/raw/')) {
-      const filename = url.pathname.replace('/raw/', '');
-
-      // Lấy nội dung từ KV Database
+    // 3. TRẢ VỀ RAW FILE (GET /:filename)
+    // Ví dụ: https://rawz.noirnotfun.workers.dev/my-script
+    const filename = url.pathname.slice(1); // Lấy tên file bỏ dấu /
+    
+    if (filename) {
       const rawContent = await env.PASTE_DB.get(filename);
 
       if (!rawContent) {
-        return new Response('404 File Not Found', { status: 404 });
+        return new Response('404 Not Found', { status: 404, headers: corsHeaders });
       }
 
-      // Trả về text thô cho bất cứ trình duyệt/tool nào gọi
       return new Response(rawContent, {
         status: 200,
         headers: { 
-          'Content-Type': 'text/plain; charset=utf-8',
-          'Access-Control-Allow-Origin': '*'
+          ...corsHeaders,
+          'Content-Type': 'text/plain; charset=utf-8' 
         }
       });
     }
 
-    // 4. MẶC ĐỊNH: Phục vụ giao diện Manager Web tĩnh trong /public
-    return env.ASSETS.fetch(request);
+    return new Response('RawZ API Engine Active', { status: 200, headers: corsHeaders });
   }
 };
