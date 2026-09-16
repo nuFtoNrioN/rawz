@@ -1,0 +1,10 @@
+name = "noirhub-raw-manager"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[site]
+bucket = "./public"
+
+[[kv_namespaces]]
+binding = "PASTE_DB"
+id = "6019436603c14336a97b3b010a1cf015"
