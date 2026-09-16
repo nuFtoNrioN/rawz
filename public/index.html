@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOIRHUB // RAW_PASTE_MANAGER</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: #030303;
+            color: #d1d5db;
+            font-family: 'JetBrains Mono', monospace;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+        }
+
+        body::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 3px, 6px 100%;
+            pointer-events: none;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0a0a0c;
+            border: 2px solid #ff2a2a;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            box-shadow: 4px 4px 0px #ff2a2a;
+        }
+
+        .brand { font-size: 16px; font-weight: 800; color: #fff; }
+
+        .btn-add {
+            background: #ff2a2a;
+            color: #000;
+            border: none;
+            width: 36px;
+            height: 36px;
+            font-size: 22px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .btn-add:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px #fff; }
+
+        /* Grid hiển thị Cards */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: #0a0a0c;
+            border: 1px solid #333;
+            padding: 16px;
+            position: relative;
+            user-select: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .card:hover { border-color: #ff2a2a; }
+
+        .card-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+
+        .card-link-box {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            background: #000;
+            border: 1px solid #222;
+            padding: 6px;
+        }
+
+        .card-link {
+            font-size: 10px;
+            color: #00ff66;
+            word-break: break-all;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .btn-copy {
+            background: #ff2a2a;
+            color: #000;
+            border: none;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        /* Giao diện khi trống */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: #0a0a0c;
+            border: 2px dashed #333;
+            margin-top: 20px;
+        }
+
+        .empty-title { font-size: 14px; color: #888; margin-bottom: 16px; }
+
+        .btn-create-first {
+            background: #ff2a2a;
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 4px 4px 0px #fff;
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            padding: 20px;
+        }
+
+        .modal {
+            background: #0a0a0c;
+            border: 2px solid #ff2a2a;
+            padding: 24px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 8px 8px 0px #ff2a2a;
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #222;
+            padding-bottom: 10px;
+            margin-bottom: 16px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #ff2a2a;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .form-group { margin-bottom: 14px; }
+        label { display: block; font-size: 11px; color: #888; margin-bottom: 6px; }
+
+        input[type="text"] {
+            width: 100%;
+            background: #000;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 10px;
+            font-family: inherit;
+            font-size: 12px;
+            outline: none;
+        }
+
+        textarea {
+            width: 100%;
+            height: 180px;
+            background: #000;
+            border: 1px solid #333;
+            color: #00ff66;
+            padding: 10px;
+            font-family: inherit;
+            font-size: 12px;
+            outline: none;
+            resize: vertical;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-submit {
+            flex: 1;
+            background: #ff2a2a;
+            color: #000;
+            border: none;
+            padding: 12px;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 3px 3px 0px #fff;
+        }
+
+        .btn-file-upload {
+            background: #222;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 12px;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        /* Context Menu Popup */
+        .context-menu {
+            position: fixed;
+            background: #0a0a0c;
+            border: 1px solid #ff2a2a;
+            box-shadow: 4px 4px 0px #000;
+            display: none;
+            z-index: 300;
+            width: 120px;
+        }
+
+        .context-item {
+            padding: 10px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #fff;
+            text-transform: uppercase;
+        }
+
+        .context-item:hover { background: #ff2a2a; color: #000; }
+        .context-item.delete { color: #ff2a2a; }
+        .context-item.delete:hover { background: #ff2a2a; color: #000; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="navbar">
+            <span class="brand">NOIRHUB // RAW MANAGER</span>
+            <button class="btn-add" onclick="openModal('create')">+</button>
+        </div>
+
+        <!-- Grid chứa Cards -->
+        <div id="cardsGrid" class="cards-grid"></div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <p class="empty-title">CHƯA CÓ FILE NÀO? TẠO FILE ĐẦU TIÊN NGAY!</p>
+            <button class="btn-create-first" onclick="openModal('create')">[ TẠO FILE MỚI ]</button>
+        </div>
+    </div>
+
+    <!-- Popup Modal Tạo / Sửa -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <span id="modalTitle" style="font-weight:800; color:#fff;">TẠO FILE MỚI</span>
+                <button class="modal-close" onclick="closeModal()">X</button>
+            </div>
+
+            <div class="form-group">
+                <label>TÊN FILE / ID:</label>
+                <input type="text" id="fileName" placeholder="VD: main-script, v1-bloxfruit...">
+            </div>
+
+            <div class="form-group">
+                <label>NỘI DUNG CODE LUA / TEXT:</label>
+                <textarea id="fileCode" placeholder="Dán nội dung code vào đây..."></textarea>
+            </div>
+
+            <input type="file" id="fileInput" accept=".lua,.txt" style="display: none;" onchange="handleFileSelect(event)">
+
+            <div class="modal-actions">
+                <button class="btn-file-upload" onclick="document.getElementById('fileInput').click()">UPLOAD FILE (.LUA, .TXT)</button>
+                <button class="btn-submit" id="btnSubmit" onclick="saveFile()">TẠO</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu {Xóa, Sửa} -->
+    <div id="contextMenu" class="context-menu">
+        <div class="context-item" onclick="onContextEdit()">SỬA</div>
+        <div class="context-item delete" onclick="onContextDelete()">XÓA</div>
+    </div>
+
+    <script>
+        let files = JSON.parse(localStorage.getItem('noir_files') || '[]');
+        let currentMode = 'create';
+        let targetFileId = null;
+        let pressTimer = null;
+
+        const cardsGrid = document.getElementById('cardsGrid');
+        const emptyState = document.getElementById('emptyState');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalTitle = document.getElementById('modalTitle');
+        const btnSubmit = document.getElementById('btnSubmit');
+        const fileName = document.getElementById('fileName');
+        const fileCode = document.getElementById('fileCode');
+        const contextMenu = document.getElementById('contextMenu');
+
+        function renderCards() {
+            cardsGrid.innerHTML = '';
+            if (files.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+            files.forEach(file => {
+                const rawUrl = `${window.location.origin}/raw/${file.id}`;
+                const card = document.createElement('div');
+                card.className = 'card';
+
+                card.innerHTML = `
+                    <div class="card-title">${file.id}</div>
+                    <div class="card-link-box">
+                        <span class="card-link">${rawUrl}</span>
+                        <button class="btn-copy" onclick="copyLink(event, '${rawUrl}')">COPY</button>
+                    </div>
+                `;
+
+                // Chuột phải mở menu context
+                card.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    showContextMenu(e.clientX, e.clientY, file.id);
+                });
+
+                // Chạm giữ trên thiết bị di động
+                card.addEventListener('touchstart', (e) => {
+                    pressTimer = setTimeout(() => {
+                        const touch = e.touches[0];
+                        showContextMenu(touch.clientX, touch.clientY, file.id);
+                    }, 500);
+                });
+
+                card.addEventListener('touchend', () => clearTimeout(pressTimer));
+                card.addEventListener('touchmove', () => clearTimeout(pressTimer));
+
+                cardsGrid.appendChild(card);
+            });
+        }
+
+        function copyLink(e, url) {
+            e.stopPropagation();
+            navigator.clipboard.writeText(url);
+            alert("Đã sao chép link Raw!");
+        }
+
+        function openModal(mode, id = null) {
+            currentMode = mode;
+            targetFileId = id;
+
+            if (mode === 'create') {
+                modalTitle.innerText = "TẠO FILE MỚI";
+                btnSubmit.innerText = "TẠO";
+                fileName.value = '';
+                fileName.disabled = false;
+                fileCode.value = '';
+            } else {
+                modalTitle.innerText = "CHỈNH SỬA FILE";
+                btnSubmit.innerText = "LƯU";
+                const file = files.find(f => f.id === id);
+                if (file) {
+                    fileName.value = file.id;
+                    fileName.disabled = true;
+                    fileCode.value = file.content || '';
+                }
+            }
+            modalOverlay.style.display = 'flex';
+        }
+
+        function closeModal() {
+            modalOverlay.style.display = 'none';
+        }
+
+        async function saveFile() {
+            const id = fileName.value.trim();
+            const content = fileCode.value;
+
+            if (!id || !content.trim()) {
+                alert("Vui lòng nhập Tên file/ID và Nội dung code!");
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, content })
+                });
+
+                if (res.ok) {
+                    if (currentMode === 'create') {
+                        const existingIdx = files.findIndex(f => f.id === id);
+                        if (existingIdx !== -1) {
+                            files[existingIdx].content = content;
+                        } else {
+                            files.push({ id, content });
+                        }
+                    } else {
+                        const file = files.find(f => f.id === id);
+                        if (file) file.content = content;
+                    }
+
+                    localStorage.setItem('noir_files', JSON.stringify(files));
+                    renderCards();
+                    closeModal();
+                } else {
+                    const errData = await res.json().catch(() => ({}));
+                    alert("Lỗi khi lưu lên Server: " + (errData.error || res.statusText));
+                }
+            } catch (err) {
+                alert("Không thể kết nối tới Backend Cloudflare!");
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!fileName.value) {
+                fileName.value = file.name.replace(/\.[^/.]+$/, "");
+            }
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                fileCode.value = event.target.result;
+            };
+            reader.readAsText(file);
+        }
+
+        function showContextMenu(x, y, id) {
+            targetFileId = id;
+            contextMenu.style.left = `${x}px`;
+            contextMenu.style.top = `${y}px`;
+            contextMenu.style.display = 'block';
+        }
+
+        function hideContextMenu() {
+            contextMenu.style.display = 'none';
+        }
+
+        function onContextEdit() {
+            hideContextMenu();
+            openModal('edit', targetFileId);
+        }
+
+        async function onContextDelete() {
+            hideContextMenu();
+            if (!targetFileId) return;
+
+            if (confirm(`Bạn có chắc muốn xóa file [${targetFileId}]?`)) {
+                try {
+                    const res = await fetch('/api/delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: targetFileId })
+                    });
+
+                    files = files.filter(f => f.id !== targetFileId);
+                    localStorage.setItem('noir_files', JSON.stringify(files));
+                    renderCards();
+                } catch (err) {
+                    files = files.filter(f => f.id !== targetFileId);
+                    localStorage.setItem('noir_files', JSON.stringify(files));
+                    renderCards();
+                }
+            }
+        }
+
+        window.onclick = () => hideContextMenu();
+
+        // Khởi chạy render ban đầu
+        renderCards();
+    </script>
+</body>
+</html>
