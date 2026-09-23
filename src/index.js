@@ -1,8 +1,9 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    // Xóa dấu / ở cuối đường dẫn nếu có
+    const pathname = url.pathname.replace(/\/$/, '') || '/';
 
-    // Bật CORS cho phép gọi API từ mọi nơi
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
@@ -14,15 +15,13 @@ export default {
     }
 
     // ==========================================
-    // 1. API LẤY TOÀN BỘ DANH SÁCH FILE/FOLDER (GET /api/raws)
+    // 1. API LẤY TẤT CẢ FILE/FOLDER (GET /api/rawz hoặc /rawz)
     // ==========================================
-    if (url.pathname === '/api/raws' && request.method === 'GET') {
+    if ((pathname === '/api/rawz' || pathname === '/rawz') && request.method === 'GET') {
       try {
-        // Lấy danh sách tất cả các key lưu trong KV
         const list = await env.PASTE_DB.list();
         const result = {};
 
-        // Đọc song song nội dung tất cả các key
         await Promise.all(
           list.keys.map(async (k) => {
             const content = await env.PASTE_DB.get(k.name);
@@ -37,15 +36,15 @@ export default {
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500,
-          headers: corsHeaders
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
     }
 
     // ==========================================
-    // 2. API LƯU/SỬA FILE HOẶC TẠO FOLDER (POST /api/raws)
+    // 2. API LƯU FILE / TẠO FOLDER (POST /api/rawz hoặc /rawz)
     // ==========================================
-    if (url.pathname === '/api/raws' && request.method === 'POST') {
+    if ((pathname === '/api/rawz' || pathname === '/rawz') && request.method === 'POST') {
       try {
         const { key, content, oldKey } = await request.json();
 
@@ -56,12 +55,10 @@ export default {
           });
         }
 
-        // Nếu đổi tên key/path -> Xóa key cũ đi
         if (oldKey && oldKey !== key) {
           await env.PASTE_DB.delete(oldKey);
         }
 
-        // Lưu key mới vào KV
         await env.PASTE_DB.put(key, content || '');
 
         return new Response(JSON.stringify({ 
@@ -74,26 +71,25 @@ export default {
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500,
-          headers: corsHeaders
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
     }
 
     // ==========================================
-    // 3. API XÓA NHIỀU FILE / FOLDER (POST /api/raws/batch-delete)
+    // 3. API XÓA NHIỀU FILE/FOLDER (POST /api/rawz/batch-delete hoặc /rawz/batch-delete)
     // ==========================================
-    if (url.pathname === '/api/raws/batch-delete' && request.method === 'POST') {
+    if ((pathname === '/api/rawz/batch-delete' || pathname === '/rawz/batch-delete') && request.method === 'POST') {
       try {
         const { keys } = await request.json();
 
         if (!Array.isArray(keys) || keys.length === 0) {
-          return new Response(JSON.stringify({ error: 'Invalid or empty keys array' }), {
+          return new Response(JSON.stringify({ error: 'Invalid keys array' }), {
             status: 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
 
-        // Xóa tất cả key trong danh sách
         await Promise.all(keys.map(k => env.PASTE_DB.delete(k)));
 
         return new Response(JSON.stringify({ success: true }), {
@@ -103,19 +99,18 @@ export default {
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), {
           status: 500,
-          headers: corsHeaders
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
     }
 
     // ==========================================
-    // 4. LẤY RAW FILE THEO ĐƯỜNG DẪN (GET /folder1/folder2/file.lua)
+    // 4. LẤY RAW SCRIPT THEO PATH (GET /folder1/file.lua)
     // ==========================================
-    // Decode đường dẫn URL để xử lý đúng ký tự tiếng Việt hoặc dấu cách
-    const fullPath = decodeURIComponent(url.pathname.slice(1));
+    const rawPath = decodeURIComponent(url.pathname.slice(1));
 
-    if (fullPath) {
-      const rawContent = await env.PASTE_DB.get(fullPath);
+    if (rawPath) {
+      const rawContent = await env.PASTE_DB.get(rawPath);
 
       if (rawContent !== null) {
         return new Response(rawContent, {
@@ -128,6 +123,6 @@ export default {
       }
     }
 
-    return new Response('RawZ API Engine Active', { status: 200, headers: corsHeaders });
+    return new Response('Not Found', { status: 404, headers: corsHeaders });
   }
 };
