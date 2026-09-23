@@ -2,120 +2,111 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // Header CORS cho phép gọi API từ mọi domain
+    // Bật CORS để Web Manager từ trình duyệt có thể gọi API vào
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     };
 
+    // Xử lý preflight request của CORS
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // 1. LẤY TOÀN BỘ DANH SÁCH FILE & FOLDER (GET /api/rawz)
-    if (url.pathname === '/api/rawz' && request.method === 'GET') {
+    const path = url.pathname;
+
+    // 1. LẤY TOÀN BỘ DATA (GET /api/raws)
+    // Frontend gọi cái này để render giao diện Folder/File
+    if (path === '/api/raws' && request.method === 'GET') {
       try {
-        const list = await env.PASTE_DB.list();
+        // Lấy danh sách key từ KV
+        const listed = await env.PASTE_DB.list();
         const data = {};
         
-        // Đọc nội dung của toàn bộ key trong KV
-        await Promise.all(list.keys.map(async (k) => {
-          const val = await env.PASTE_DB.get(k.name);
-          data[k.name] = val;
+        // Duyệt qua lấy content (tạo thành cục JSON trả về)
+        await Promise.all(listed.keys.map(async (k) => {
+            const value = await env.PASTE_DB.get(k.name);
+            data[k.name] = value;
         }));
 
         return new Response(JSON.stringify(data), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { 
-          status: 500, 
-          headers: corsHeaders 
-        });
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
       }
     }
 
-    // 2. TẠO HOẶC CẬP NHẬT FILE / FOLDER (POST /api/rawz)
-    if (url.pathname === '/api/rawz' && request.method === 'POST') {
+    // 2. TẠO / CHỈNH SỬA FILE & FOLDER (POST /api/raws)
+    if (path === '/api/raws' && request.method === 'POST') {
       try {
         const { key, content, oldKey } = await request.json();
 
         if (!key) {
-          return new Response(JSON.stringify({ error: 'Missing key' }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
+          return new Response(JSON.stringify({ error: 'Thiếu đường dẫn (key)' }), { status: 400, headers: corsHeaders });
         }
 
-        // Nếu đổi tên/đường dẫn thì xóa key cũ
+        // Xử lý đổi tên: Nếu sửa file và đổi tên -> Xóa file cũ
         if (oldKey && oldKey !== key) {
-          await env.PASTE_DB.delete(oldKey);
+            await env.PASTE_DB.delete(oldKey);
         }
 
-        await env.PASTE_DB.put(key, content || '');
+        // Lưu file/folder mới
+        await env.PASTE_DB.put(key, content);
 
-        return new Response(JSON.stringify({ 
-          success: true, 
-          rawUrl: `${url.origin}/${key}` 
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { 
-          status: 500, 
-          headers: corsHeaders 
-        });
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
       }
     }
 
-    // 3. XÓA BATCH NHIỀU FILE HOẶC FOLDER (POST /api/rawz/batch-delete)
-    if (url.pathname === '/api/rawz/batch-delete' && request.method === 'POST') {
-      try {
-        const { keys } = await request.json();
+    // 3. XÓA HÀNG LOẠT (POST /api/raws/batch-delete)
+    // Xóa cùng lúc khi tick chọn nhiều file hoặc xóa cả folder
+    if (path === '/api/raws/batch-delete' && request.method === 'POST') {
+        try {
+            const { keys } = await request.json();
+            if (!Array.isArray(keys)) {
+                return new Response(JSON.stringify({ error: 'Dữ liệu xóa không hợp lệ' }), { status: 400, headers: corsHeaders });
+            }
 
-        if (!Array.isArray(keys) || keys.length === 0) {
-          return new Response(JSON.stringify({ error: 'Missing keys array' }), {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
+            // Thực thi xóa toàn bộ các key được gửi lên
+            await Promise.all(keys.map(k => env.PASTE_DB.delete(k)));
+
+            return new Response(JSON.stringify({ success: true }), { status: 200, headers: corsHeaders });
+        } catch (err) {
+            return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+        }
+    }
+
+    // 4. TRẢ VỀ RAW FILE CHO ROBLOX EXECUTOR (GET /folder/filename)
+    // Bắt các request không phải trang chủ (/) và không chứa /api/
+    if (path !== '/' && !path.startsWith('/api/')) {
+        // Decode URL để đọc được thư mục chứa dấu cách (VD: "UI Scripts/main.lua")
+        const itemKey = decodeURIComponent(path.slice(1)); 
+        
+        const rawContent = await env.PASTE_DB.get(itemKey);
+
+        if (!rawContent) {
+            return new Response('404 Not Found - Script này đã bị xóa hoặc không tồn tại!', { status: 404, headers: corsHeaders });
         }
 
-        await Promise.all(keys.map(k => env.PASTE_DB.delete(k)));
-
-        return new Response(JSON.stringify({ success: true }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { 
-          status: 500, 
-          headers: corsHeaders 
-        });
-      }
-    }
-
-    // 4. TRẢ VỀ RAW CONTENT CHO BẤT KỲ ĐƯỜNG DẪN NÀO (GET /folder1/folder2/script.lua)
-    const rawPath = decodeURIComponent(url.pathname.slice(1));
-    
-    if (rawPath && !rawPath.startsWith('api/')) {
-      const rawContent = await env.PASTE_DB.get(rawPath);
-
-      if (rawContent === null) {
-        return new Response('404 Not Found', { status: 404, headers: corsHeaders });
-      }
-
-      return new Response(rawContent, {
-        status: 200,
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'text/plain; charset=utf-8' 
+        // Chặn không render text raw của file định dạng folder (.keep)
+        if (itemKey.endsWith('/.keep')) {
+            return new Response('Forbidden: Folder reference', { status: 403, headers: corsHeaders });
         }
-      });
+
+        return new Response(rawContent, {
+            status: 200,
+            headers: { 
+                ...corsHeaders,
+                'Content-Type': 'text/plain; charset=utf-8' 
+            }
+        });
     }
 
-    return new Response('RawZ API Engine Active', { status: 200, headers: corsHeaders });
+    // Trang chủ dự phòng
+    return new Response('NoirHub Raw Storage System Active!', { status: 200, headers: corsHeaders });
   }
 };
